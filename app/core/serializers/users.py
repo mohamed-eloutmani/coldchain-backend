@@ -10,21 +10,39 @@ class UserListSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "date_joined"]
 
 class UserCreateSerializer(serializers.ModelSerializer):
-    # write-only password; we’ll hash it in create()
-    password = serializers.CharField(write_only=True, min_length=4, trim_whitespace=False)
+    password = serializers.CharField(
+        write_only=True,
+        min_length=4,
+        trim_whitespace=False
+    )
 
     class Meta:
         model = User
-        fields = ["id", "email", "first_name", "last_name", "password", "is_active", "is_staff"]
+        fields = [
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "password",
+            "is_active",
+            "is_staff",
+        ]
         read_only_fields = ["id"]
 
     def validate_email(self, value):
         if User.objects.filter(email__iexact=value).exists():
-            raise serializers.ValidationError("A user with this email already exists.")
+            raise serializers.ValidationError(
+                "A user with this email already exists."
+            )
         return value
 
     def create(self, validated_data):
         password = validated_data.pop("password")
+
+        # ✅ FIX: username is required by Django User model
+        if not validated_data.get("username"):
+            validated_data["username"] = validated_data["email"]
+
         user = User(**validated_data)
         user.set_password(password)
         user.save()

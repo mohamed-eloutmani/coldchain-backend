@@ -4,6 +4,7 @@ from django.utils.dateparse import parse_datetime
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from django.http import HttpResponse
 
 from .services.devices import DeviceService
 from .services.measurements import MeasurementService
@@ -28,12 +29,10 @@ def measurements_range(request):
 
     return Response(MeasurementSerializer(qs, many=True).data)
 
+
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def measurements_export_csv(request):
-    """
-    GET /api/measurements/export.csv?device=<code>&from=ISO&to=ISO
-    """
     code = request.GET.get("device")
     frm = parse_datetime(request.GET.get("from")) if request.GET.get("from") else None
     to  = parse_datetime(request.GET.get("to")) if request.GET.get("to") else None
@@ -41,16 +40,24 @@ def measurements_export_csv(request):
     if code:
         device = DeviceService.get_by_code_or_404(code)
         qs = MeasurementService.series(device=device, frm=frm, to=to)
+        filename = f"measurements_{device.code}.csv"
     else:
         qs = MeasurementService.recent_all(limit=10000)
+        filename = "measurements_all.csv"
 
-    # Build CSV in-memory
-    buf = StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["device", "ts", "temp_c", "humidity", "state"])
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+    writer = csv.writer(response)
+    writer.writerow(["device", "timestamp", "temp_c", "humidity", "state"])
+
     for m in qs:
-        writer.writerow([getattr(m.device, "code", None), m.ts, m.temp_c, m.humidity, m.state])
+        writer.writerow([
+            m.device.code if m.device else "",
+            m.ts,
+            m.temp_c,
+            m.humidity,
+            m.state
+        ])
 
-    csv_data = buf.getvalue()
-    # DRF Response with text/csv
-    return Response(csv_data, content_type="text/csv")
+    return response

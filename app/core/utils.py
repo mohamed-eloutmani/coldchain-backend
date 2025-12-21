@@ -2,11 +2,19 @@ import os
 import requests
 from django.conf import settings
 
-def classify_state(temp_c: float, low_warn=2.0, high_warn=8.0, low_crit=0.0, high_crit=10.0):
-    if temp_c < low_crit or temp_c > high_crit:
+def classify_state(
+    temp_c: float,
+    *,
+    min_temp: float,
+    max_temp: float,
+    margin: float = 5.0,
+):
+    if temp_c < min_temp - margin or temp_c > max_temp + margin:
         return "CRITICAL"
-    if (low_crit <= temp_c < low_warn) or (high_warn < temp_c <= high_crit):
+
+    if temp_c < min_temp or temp_c > max_temp:
         return "SEVERE"
+
     return "NORMAL"
 
 

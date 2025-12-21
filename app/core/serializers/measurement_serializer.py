@@ -27,7 +27,11 @@ class IngestMeasurementSerializer(serializers.Serializer):
         hum = validated_data.get("humidity")
         ts = validated_data["ts"]
 
-        state = classify_state(temp)
+        state = classify_state(
+            temp,
+            min_temp=device.min_temp,
+            max_temp=device.max_temp,
+        )
 
         m = Measurement.objects.create(
             device=device, ts=ts, temp_c=temp, humidity=hum, state=state

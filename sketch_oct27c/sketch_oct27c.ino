@@ -10,10 +10,10 @@
 #include <time.h>  // NTP time
 
 // ------------ USER CONFIG ------------
-const char* WIFI_SSID     = "millenium";
-const char* WIFI_PASSWORD = "millenium2026";
+const char* WIFI_SSID     = "Et@ehei";
+const char* WIFI_PASSWORD = "eheio2023";
 
-const char* MQTT_HOST = "192.168.1.30";   // your Mac/PC LAN IP
+const char* MQTT_HOST = "10.9.9.74";
 const uint16_t MQTT_PORT = 1883;
 
 const char* DEVICE_ID = "fridge-ARZAK-001";

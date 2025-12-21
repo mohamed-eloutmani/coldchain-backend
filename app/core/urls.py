@@ -12,7 +12,7 @@ urlpatterns = [
     path("measurements/ingest", views.ingest_measurement, name="ingest_measurement"),
     path("measurements/recent", views.measurements_recent, name="measurements_recent"),
     path("devices", views_devices.devices_list_create, name="devices_list_create"),   # GET + POST
-    path("devices/<str:code>/metrics", views.device_metrics, name="device_metrics"),
+    path("devices/<str:code>/metrics", views_devices.device_metrics, name="device_metrics"),
     path("devices/<str:code>", views_devices.devices_detail_update_delete, name="devices_detail_update_delete"),  # GET/PUT/PATCH/DELETE
 
     # ----------------------------------

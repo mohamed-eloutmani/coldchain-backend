@@ -1,24 +1,26 @@
 # app/core/views.py
+
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 from django.conf import settings
+
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .services import MeasurementService, TicketService, DeviceService, TelegramBotService, AlertService
 
+from rest_framework_simplejwt.views import TokenObtainPairView
 
-from .serializers import (
-    IngestMeasurementSerializer,
-    MeasurementSerializer,
-)
-from .services.measurements import MeasurementService
-from .services.tickets import TicketService
-from .services.devices import DeviceService
-from .services.telegram_bot import TelegramBotService
+# ✅ CORRECT SERIALIZER IMPORTS (NO DUPLICATES)
+from core.serializers.jwt import TokenObtainPairWithUserSerializer
+from core.serializers.auth import LoginUserSerializer
+from core.serializers import IngestMeasurementSerializer, MeasurementSerializer
 
+from core.services.measurements import MeasurementService
+from core.services.tickets import TicketService
+from core.services.devices import DeviceService
+from core.services.telegram_bot import TelegramBotService
 
 
 # ----------------------------
@@ -28,7 +30,6 @@ from .services.telegram_bot import TelegramBotService
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def ingest_measurement(request):
-    """HTTP ingestion from device (mainly for tests / non-MQTT fallback)."""
     ser = IngestMeasurementSerializer(data=request.data)
     ser.is_valid(raise_exception=True)
     m = MeasurementService.ingest_from_serializer(ser)
@@ -38,60 +39,54 @@ def ingest_measurement(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def device_metrics(request, code):
-    """KPI & time series for a device. Optional ?from=...&to=... (ISO 8601)."""
     device = DeviceService.get_by_code_or_404(code)
     frm = parse_datetime(request.GET.get("from")) if request.GET.get("from") else None
     to = parse_datetime(request.GET.get("to")) if request.GET.get("to") else None
     qs = MeasurementService.series(device=device, frm=frm, to=to)
     agg = MeasurementService.aggregate(qs)
-    data = MeasurementSerializer(qs, many=True).data
-    return Response({"series": data, "agg": agg})
+    return Response(
+        {"series": MeasurementSerializer(qs, many=True).data, "agg": agg}
+    )
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def devices_list(request):
-    """Lightweight list of devices with their latest reading."""
-    items = DeviceService.list_with_latest()
-    return Response(items)
+    return Response(DeviceService.list_with_latest())
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def measurements_recent(request):
-    """Recent measurements. Optional ?device=<code>&limit=100"""
     code = request.GET.get("device")
     limit = int(request.GET.get("limit") or 100)
+
     if code:
         device = DeviceService.get_by_code_or_404(code)
         qs = MeasurementService.recent_for_device(device, limit=limit)
     else:
         qs = MeasurementService.recent_all(limit=limit)
+
     return Response(MeasurementSerializer(qs, many=True).data)
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def dashboard_summary(request):
-    """Small dashboard summary: counts + last 24h stats."""
-    payload = DeviceService.dashboard_summary()
-    return Response(payload)
+    return Response(DeviceService.dashboard_summary())
 
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def tickets_open(request):
-    """List currently open tickets with escalation role hints."""
     roles = getattr(settings, "ESCALATION_ROLES", [])
-    data = TicketService.list_open_as_dict(roles=roles)
-    return Response(data)
+    return Response(TicketService.list_open_as_dict(roles=roles))
 
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def ticket_ack(request, ticket_id: int):
-    """Acknowledge an open ticket."""
-    name = request.data.get("name") or (getattr(request.user, "username", None) or "operator")
+    name = request.data.get("name") or request.user.email
     res = TicketService.ack(ticket_id=ticket_id, by=name)
     return Response(res, status=200 if res.get("ok") else 404)
 
@@ -110,15 +105,9 @@ def escalation_roles(request):
 @csrf_exempt
 @api_view(["POST"])
 def telegram_webhook(request):
-    """
-    Webhook handler if you choose to use webhooks later.
-    Supports:
-      - /start
-      - /status [deviceCode]
-      - /ack <ticketId>
-    """
     update = TelegramBotService.safe_parse_update(request)
     chat_id, text, sender_name = TelegramBotService.extract_message(update)
+
     if not chat_id or not text:
         return Response({"ok": True})
 
@@ -139,27 +128,13 @@ def telegram_webhook(request):
             res = TicketService.ack(ticket_id=int(parts[1]), by=sender_name)
             TelegramBotService.reply_ack(chat_id, res, sender_name)
             return Response(res, status=200 if res.get("ok") else 404)
-        TelegramBotService.send_md(chat_id, "Usage: `/ack <ticketId>`")
-        return Response({"ok": False, "error": "usage"}, status=400)
 
-    TelegramBotService.send_md(chat_id, "🤖 Unknown command. Try `/status` or `/ack <id>`.")
+        TelegramBotService.send_md(chat_id, "Usage: `/ack <ticketId>`")
+        return Response({"ok": False}, status=400)
+
+    TelegramBotService.send_md(chat_id, "🤖 Unknown command.")
     return Response({"ok": True})
 
-@api_view(["GET"])
-@permission_classes([IsAuthenticated])
-def dashboard_devices_stats(request):
-    """
-    GET /api/dashboard/devices-stats
-    Returns counts by last known state: NORMAL/WARNING/CRITICAL/UNKNOWN
-    """
-    items = DeviceService.list_with_latest()  # you already use this in devices_list
-    counts = {"NORMAL": 0, "WARNING": 0, "CRITICAL": 0, "UNKNOWN": 0}
-    for d in items:
-        st = d.get("last_state") or "UNKNOWN"
-        if st not in counts:
-            st = "UNKNOWN"
-        counts[st] += 1
-    return Response(counts)
 
 # ----------------------------
 #  Tiny authenticated sanity view
@@ -169,6 +144,57 @@ class HelloView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({"message": f"Hello {request.user.email}, your token is valid!"})
+        return Response(
+            {"message": f"Hello {request.user.email}, your token is valid!"}
+        )
 
 
+# ----------------------------
+#  Auth - Login (JWT + user)
+# ----------------------------
+
+class LoginView(TokenObtainPairView):
+    """
+    POST /api/auth/login
+    Body: { "email": "...", "password": "..." }
+    """
+    serializer_class = TokenObtainPairWithUserSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.user
+
+        return Response(
+            {
+                "access": serializer.validated_data["access"],
+                "refresh": serializer.validated_data["refresh"],
+                "user": LoginUserSerializer(user).data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def dashboard_devices_stats(request):
+    """
+    GET /api/dashboard/devices-stats
+    Returns counts by last known state: NORMAL / WARNING / CRITICAL / UNKNOWN
+    """
+    items = DeviceService.list_with_latest()
+
+    counts = {
+        "NORMAL": 0,
+        "WARNING": 0,
+        "CRITICAL": 0,
+        "UNKNOWN": 0,
+    }
+
+    for d in items:
+        state = d.get("last_state") or "UNKNOWN"
+        if state not in counts:
+            state = "UNKNOWN"
+        counts[state] += 1
+
+    return Response(counts)

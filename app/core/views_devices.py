@@ -11,6 +11,7 @@ from django.utils import timezone
 from datetime import timedelta
 from django.db.models.functions import TruncMinute, TruncHour, TruncDay, TruncWeek, TruncMonth
 from django.db.models import Avg, Min, Max
+from .services.measurements import MeasurementService
 
 
 @api_view(["GET", "POST"])
