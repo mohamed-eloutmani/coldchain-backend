@@ -44,7 +44,7 @@ urlpatterns = [
     # Measurements range/export (if you added them)
     path("measurements/range", views_measurements.measurements_range, name="measurements_range"),
     path("measurements/export.csv", views_measurements.measurements_export_csv, name="measurements_export_csv"),
-
+    path("measurements/import.csv", views_measurements.measurements_import_csv),
     # Dashboard stats (if you added it)
     path("dashboard/devices-stats", views.dashboard_devices_stats, name="dashboard_devices_stats"),
 ]

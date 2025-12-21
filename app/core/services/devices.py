@@ -102,7 +102,7 @@ class DeviceService:
     @staticmethod
     def list_with_latest():
         items = []
-        for d in Device.objects.all():
+        for d in Device.objects.filter(is_active=True):
             items.append(DeviceService.detail_as_dict(d))
         # (optionally sort by code or latest ts)
         return items
