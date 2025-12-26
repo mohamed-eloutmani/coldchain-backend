@@ -5,15 +5,23 @@ from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# ====== Basic Configuration ======
+# ======================================================
+# Basic Configuration
+# ======================================================
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-key")
-DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
-ALLOWED_HOSTS = os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",")
+DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() == "true"
 
-# ====== Telegram Bot ======
+# Render uses dynamic hostnames
+ALLOWED_HOSTS = ["*"]
+
+# ======================================================
+# Telegram Bot
+# ======================================================
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 
-# ====== Installed Apps ======
+# ======================================================
+# Installed Apps
+# ======================================================
 INSTALLED_APPS = [
     "corsheaders",
     "django.contrib.admin",
@@ -22,16 +30,21 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+
     "rest_framework",
-    "rest_framework_simplejwt",   # ➕ JWT library
+    "rest_framework_simplejwt",
+
     "core",
-    "accounts",                   # ➕ your new accounts app (User model)
+    "accounts",
 ]
 
-# ====== Middleware ======
+# ======================================================
+# Middleware (ORDER MATTERS)
+# ======================================================
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware", 
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",  # Render static files
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -40,26 +53,34 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-# ====== URLs & WSGI ======
+# ======================================================
+# URLs & WSGI
+# ======================================================
 ROOT_URLCONF = "coldchain.urls"
 WSGI_APPLICATION = "coldchain.wsgi.application"
 
-# ====== Templates ======
-TEMPLATES = [{
-    "BACKEND": "django.template.backends.django.DjangoTemplates",
-    "DIRS": [],
-    "APP_DIRS": True,
-    "OPTIONS": {
-        "context_processors": [
-            "django.template.context_processors.debug",
-            "django.template.context_processors.request",
-            "django.contrib.auth.context_processors.auth",
-            "django.contrib.messages.context_processors.messages",
-        ],
-    },
-}]
+# ======================================================
+# Templates
+# ======================================================
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.debug",
+                "django.template.context_processors.request",
+                "django.contrib.auth.context_processors.auth",
+                "django.contrib.messages.context_processors.messages",
+            ],
+        },
+    }
+]
 
-# ====== Database ======
+# ======================================================
+# Database (PostgreSQL / Render-ready)
+# ======================================================
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.postgresql",
@@ -72,22 +93,32 @@ DATABASES = {
     }
 }
 
-# ====== Localization ======
+# ======================================================
+# Localization
+# ======================================================
 LANGUAGE_CODE = "fr-fr"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# ====== Static Files ======
+# ======================================================
+# Static Files (WhiteNoise + Render)
+# ======================================================
 STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "static"
+STATIC_ROOT = BASE_DIR / "staticfiles"
+
+STATICFILES_STORAGE = (
+    "whitenoise.storage.CompressedManifestStaticFilesStorage"
+)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# ====== Django REST Framework & JWT ======
+# ======================================================
+# Django REST Framework & JWT
+# ======================================================
 REST_FRAMEWORK = {
     "DEFAULT_RENDERER_CLASSES": [
-        "rest_framework.renderers.JSONRenderer"
+        "rest_framework.renderers.JSONRenderer",
     ],
     "DEFAULT_PARSER_CLASSES": [
         "rest_framework.parsers.JSONParser",
@@ -102,8 +133,6 @@ REST_FRAMEWORK = {
     ),
 }
 
-
-
 SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(minutes=60),
     "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
@@ -111,10 +140,14 @@ SIMPLE_JWT = {
     "AUTH_HEADER_TYPES": ("Bearer",),
 }
 
-# ====== Custom User Model ======
-AUTH_USER_MODEL = "accounts.User"  # ➕ Your custom User model (ADMIN / STAFF)
+# ======================================================
+# Custom User Model
+# ======================================================
+AUTH_USER_MODEL = "accounts.User"
 
-# ====== Escalation policy (unchanged) ======
+# ======================================================
+# Escalation policy (unchanged)
+# ======================================================
 ESCALATION_ROLES = [
     "SITE_PHARMA_MANAGER",
     "TECHNICAL_MANAGER",
@@ -131,24 +164,21 @@ TELEGRAM_ROLE_CHAT_MAP = {
     "PROCUREMENT_MANAGER": TG_PROCUREMENT_MANAGER,
 }
 
+# ======================================================
+# CORS (Netlify → Render)
+# ======================================================
+CORS_ALLOW_ALL_ORIGINS = True  # OK for now (restrict later)
 
-# DEV only – safe for Docker/local
-CORS_ALLOW_ALL_ORIGINS = True
-
-# Allow JWT Authorization header (this is the key fix)
 CORS_ALLOW_HEADERS = list(default_headers) + [
     "authorization",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
 
-
-CORS_ALLOW_HEADERS = [
-    "authorization",
-    "content-type",
-    "accept",
-    "origin",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
+# ======================================================
+# CSRF (required for Render + Netlify)
+# ======================================================
+CSRF_TRUSTED_ORIGINS = [
+    "https://*.onrender.com",
+    "https://*.netlify.app",
 ]
