@@ -7,3 +7,5 @@ paho-mqtt==2.1.0
 requests==2.32.3
 djangorestframework-simplejwt
 django-cors-headers==4.4.0
+gunicorn==21.2.0
+whitenoise==6.7.0
