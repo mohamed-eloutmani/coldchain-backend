@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 from datetime import timedelta
+from corsheaders.defaults import default_headers
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -130,10 +131,17 @@ TELEGRAM_ROLE_CHAT_MAP = {
     "PROCUREMENT_MANAGER": TG_PROCUREMENT_MANAGER,
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
+
+# DEV only – safe for Docker/local
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Allow JWT Authorization header (this is the key fix)
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    "authorization",
 ]
+
+CORS_ALLOW_CREDENTIALS = True
+
 
 CORS_ALLOW_HEADERS = [
     "authorization",
